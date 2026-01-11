@@ -3,7 +3,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/11.1.0/firebas
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-auth.js";
 import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-firestore.js";
 
-// 2. YOUR CONFIG (No changes needed here, keys are same)
+// 2. YOUR CONFIG
 const firebaseConfig = {
     apiKey: "AIzaSyDAUrjhba6zQS47RpS4jH0QyvAw3U7dlcw",
     authDomain: "logintester1-e9b27.firebaseapp.com",
@@ -19,18 +19,19 @@ const auth = getAuth(app);
 const db = getFirestore(app);
 const provider = new GoogleAuthProvider();
 
-// 4. GET HTML ELEMENTS (Updated list!)
+// 4. GET HTML ELEMENTS
 const loginScreen = document.getElementById("login-screen");
 const profileScreen = document.getElementById("profile-screen");
 const loginBtn = document.getElementById("login-btn");
 const logoutBtn = document.getElementById("logout-btn");
 const saveBtn = document.getElementById("save-btn");
 const statusMsg = document.getElementById("status-msg");
+const adminSection = document.getElementById("admin-section"); // NEW ADMIN BUTTON
 
 // Input Fields
 const roleInput = document.getElementById("role-input");
-const uniInput = document.getElementById("uni-input");   // NEW
-const semInput = document.getElementById("sem-input");   // NEW
+const uniInput = document.getElementById("uni-input");
+const semInput = document.getElementById("sem-input");
 
 // ==========================================
 // LOGIC
@@ -53,12 +54,21 @@ onAuthStateChanged(auth, async (user) => {
         if (docSnap.exists()) {
             const data = docSnap.data();
             roleInput.value = data.role || "";
-            uniInput.value = data.university || ""; // Load Uni
-            semInput.value = data.semester || "Sem 1"; // Load Semester
+            uniInput.value = data.university || ""; 
+            semInput.value = data.semester || "Sem 1";
+            
+            // --- THE SECURITY CHECK ---
+            // This is where we check for the badge you just added!
+            if (data.isAdmin === true) {
+                adminSection.classList.remove("hidden"); // SHOW THE SECRET BUTTON
+            } else {
+                adminSection.classList.add("hidden"); // HIDE IT FOR EVERYONE ELSE
+            }
         }
     } else {
         loginScreen.classList.remove("hidden");
         profileScreen.classList.add("hidden");
+        adminSection.classList.add("hidden");
     }
 });
 
@@ -72,7 +82,7 @@ logoutBtn.addEventListener("click", () => {
     signOut(auth);
 });
 
-// SAVE (Updated to save 3 fields)
+// SAVE
 saveBtn.addEventListener("click", async () => {
     const user = auth.currentUser;
     if (user) {
@@ -82,12 +92,14 @@ saveBtn.addEventListener("click", async () => {
                 name: user.displayName,
                 email: user.email,
                 role: roleInput.value,
-                university: uniInput.value, // Save Uni
-                semester: semInput.value    // Save Semester
+                university: uniInput.value,
+                semester: semInput.value
+                // NOTE: We do NOT save 'isAdmin' here. 
+                // That way, you can't accidentally delete your own admin status.
             }, { merge: true });
             
             statusMsg.innerText = "✅ Profile Updated!";
-            setTimeout(() => statusMsg.innerText = "", 3000); // Clear message after 3 sec
+            setTimeout(() => statusMsg.innerText = "", 3000);
         } catch (error) {
             console.error(error);
             statusMsg.innerText = "Error saving data";
