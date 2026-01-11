@@ -1,7 +1,7 @@
-// 1. IMPORT FIREBASE TOOLS
+// 1. IMPORT FIREBASE TOOLS (CRITICAL: Added 'collection' and 'getDocs')
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-app.js";
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-auth.js";
-import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-firestore.js";
+import { getFirestore, doc, getDoc, setDoc, collection, getDocs } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-firestore.js";
 
 // 2. YOUR CONFIG
 const firebaseConfig = {
@@ -26,7 +26,11 @@ const loginBtn = document.getElementById("login-btn");
 const logoutBtn = document.getElementById("logout-btn");
 const saveBtn = document.getElementById("save-btn");
 const statusMsg = document.getElementById("status-msg");
-const adminSection = document.getElementById("admin-section"); // NEW ADMIN BUTTON
+
+// Admin Elements
+const adminSection = document.getElementById("admin-section");
+const adminBtn = document.getElementById("admin-btn");
+const adminResults = document.getElementById("admin-results");
 
 // Input Fields
 const roleInput = document.getElementById("role-input");
@@ -40,6 +44,10 @@ const semInput = document.getElementById("sem-input");
 // LISTEN FOR LOGIN
 onAuthStateChanged(auth, async (user) => {
     if (user) {
+        // RESET UI: Hide admin panel immediately to prevent leaks
+        adminSection.classList.add("hidden");
+        adminResults.classList.add("hidden");
+
         loginScreen.classList.add("hidden");
         profileScreen.classList.remove("hidden");
 
@@ -57,15 +65,13 @@ onAuthStateChanged(auth, async (user) => {
             uniInput.value = data.university || ""; 
             semInput.value = data.semester || "Sem 1";
             
-            // --- THE SECURITY CHECK ---
-            // This is where we check for the badge you just added!
+            // CHECK FOR ADMIN BADGE
             if (data.isAdmin === true) {
-                adminSection.classList.remove("hidden"); // SHOW THE SECRET BUTTON
-            } else {
-                adminSection.classList.add("hidden"); // HIDE IT FOR EVERYONE ELSE
+                adminSection.classList.remove("hidden"); // Reveal Admin Button
             }
         }
     } else {
+        // LOGGED OUT
         loginScreen.classList.remove("hidden");
         profileScreen.classList.add("hidden");
         adminSection.classList.add("hidden");
@@ -82,7 +88,7 @@ logoutBtn.addEventListener("click", () => {
     signOut(auth);
 });
 
-// SAVE
+// SAVE DATA
 saveBtn.addEventListener("click", async () => {
     const user = auth.currentUser;
     if (user) {
@@ -94,8 +100,7 @@ saveBtn.addEventListener("click", async () => {
                 role: roleInput.value,
                 university: uniInput.value,
                 semester: semInput.value
-                // NOTE: We do NOT save 'isAdmin' here. 
-                // That way, you can't accidentally delete your own admin status.
+                // We do NOT save isAdmin here to protect it
             }, { merge: true });
             
             statusMsg.innerText = "✅ Profile Updated!";
@@ -106,3 +111,35 @@ saveBtn.addEventListener("click", async () => {
         }
     }
 });
+
+// --- THE NEW CODE TO SHOW ALL USERS ---
+// This was likely missing or incomplete before!
+if (adminBtn) {
+    adminBtn.addEventListener("click", async () => {
+        adminResults.innerHTML = "Loading...";
+        adminResults.classList.remove("hidden");
+        
+        try {
+            // 1. Get all documents from the "users" collection
+            const querySnapshot = await getDocs(collection(db, "users"));
+            
+            // 2. Clear the box
+            adminResults.innerHTML = "<h3>User List:</h3>";
+            
+            // 3. Loop through each user and add them to the box
+            querySnapshot.forEach((doc) => {
+                const userData = doc.data();
+                adminResults.innerHTML += `
+                    <div style="border-bottom: 1px solid #ccc; padding: 10px; margin-bottom: 5px;">
+                        <strong>Name:</strong> ${userData.name} <br>
+                        <small>Email: ${userData.email}</small> <br>
+                        <small>Role: ${userData.role || "Not set"}</small>
+                    </div>
+                `;
+            });
+        } catch (error) {
+            console.error(error);
+            adminResults.innerText = "Error fetching users! (Check Console)";
+        }
+    });
+}
