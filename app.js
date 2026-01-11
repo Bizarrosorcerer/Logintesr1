@@ -3,7 +3,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/11.1.0/firebas
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-auth.js";
 import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-firestore.js";
 
-// 2. YOUR SPECIFIC KEYS (I added these for you!)
+// 2. YOUR CONFIG (No changes needed here, keys are same)
 const firebaseConfig = {
     apiKey: "AIzaSyDAUrjhba6zQS47RpS4jH0QyvAw3U7dlcw",
     authDomain: "logintester1-e9b27.firebaseapp.com",
@@ -13,64 +13,66 @@ const firebaseConfig = {
     appId: "1:939798745204:web:cc88423e2ed867734f0121"
 };
 
-// 3. START THE APP
+// 3. START APP
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 const provider = new GoogleAuthProvider();
 
-// 4. GET HTML ELEMENTS
+// 4. GET HTML ELEMENTS (Updated list!)
 const loginScreen = document.getElementById("login-screen");
 const profileScreen = document.getElementById("profile-screen");
 const loginBtn = document.getElementById("login-btn");
 const logoutBtn = document.getElementById("logout-btn");
 const saveBtn = document.getElementById("save-btn");
-const roleInput = document.getElementById("role-input");
 const statusMsg = document.getElementById("status-msg");
 
+// Input Fields
+const roleInput = document.getElementById("role-input");
+const uniInput = document.getElementById("uni-input");   // NEW
+const semInput = document.getElementById("sem-input");   // NEW
+
 // ==========================================
-// THE LOGIC
+// LOGIC
 // ==========================================
 
-// LISTEN FOR LOGIN/LOGOUT (Runs automatically)
+// LISTEN FOR LOGIN
 onAuthStateChanged(auth, async (user) => {
     if (user) {
-        // User is Logged In
-        console.log("User:", user.email);
         loginScreen.classList.add("hidden");
         profileScreen.classList.remove("hidden");
 
-        // Show User Info
         document.getElementById("user-name").innerText = user.displayName;
         document.getElementById("user-email").innerText = user.email;
         document.getElementById("user-photo").src = user.photoURL;
 
-        // Load Saved Data from Database
+        // LOAD DATA
         const docRef = doc(db, "users", user.uid);
         const docSnap = await getDoc(docRef);
+        
         if (docSnap.exists()) {
-            roleInput.value = docSnap.data().role || "";
+            const data = docSnap.data();
+            roleInput.value = data.role || "";
+            uniInput.value = data.university || ""; // Load Uni
+            semInput.value = data.semester || "Sem 1"; // Load Semester
         }
     } else {
-        // User is Logged Out
         loginScreen.classList.remove("hidden");
         profileScreen.classList.add("hidden");
     }
 });
 
-// LOGIN BUTTON CLICK
+// LOGIN
 loginBtn.addEventListener("click", () => {
-    signInWithPopup(auth, provider).catch((error) => {
-        alert("Login failed: " + error.message);
-    });
+    signInWithPopup(auth, provider).catch((error) => alert(error.message));
 });
 
-// LOGOUT BUTTON CLICK
+// LOGOUT
 logoutBtn.addEventListener("click", () => {
     signOut(auth);
 });
 
-// SAVE BUTTON CLICK
+// SAVE (Updated to save 3 fields)
 saveBtn.addEventListener("click", async () => {
     const user = auth.currentUser;
     if (user) {
@@ -79,12 +81,16 @@ saveBtn.addEventListener("click", async () => {
             await setDoc(doc(db, "users", user.uid), {
                 name: user.displayName,
                 email: user.email,
-                role: roleInput.value
+                role: roleInput.value,
+                university: uniInput.value, // Save Uni
+                semester: semInput.value    // Save Semester
             }, { merge: true });
-            statusMsg.innerText = "Saved successfully!";
+            
+            statusMsg.innerText = "✅ Profile Updated!";
+            setTimeout(() => statusMsg.innerText = "", 3000); // Clear message after 3 sec
         } catch (error) {
             console.error(error);
-            statusMsg.innerText = "Error saving data (Check Console)";
+            statusMsg.innerText = "Error saving data";
         }
     }
 });
