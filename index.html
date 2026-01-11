@@ -3,65 +3,67 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Advanced Student Profile</title>
+    <title>Super Admin Dashboard</title>
     <style>
         body { font-family: sans-serif; text-align: center; padding: 50px; background-color: #f0f2f5; }
         .hidden { display: none; }
         
         button {
-            padding: 12px 24px; font-size: 16px; cursor: pointer; 
+            padding: 10px 20px; font-size: 16px; cursor: pointer; 
             border: none; border-radius: 5px; margin: 10px; font-weight: bold;
         }
         .btn-google { background-color: #4285F4; color: white; }
         .btn-save { background-color: #0F9D58; color: white; width: 100%; }
         .btn-logout { background-color: #DB4437; color: white; margin-top: 20px;}
-        
-        /* ADMIN STYLES */
         .btn-admin { background-color: #2c3e50; color: #ff0055; border: 2px solid #ff0055; width: 100%; margin-top: 10px; }
-        #admin-results { 
-            background: #ffe6eb; border: 1px solid #ff0055; 
-            padding: 10px; margin-top: 10px; border-radius: 5px; 
-            text-align: left; font-size: 0.9em;
-        }
-
-        input, select { 
-            padding: 10px; width: 90%; margin-bottom: 15px; 
-            border: 1px solid #ccc; border-radius: 5px; font-size: 14px;
-        }
         
+        /* CARD STYLES */
         #profile-card {
-            background: white; padding: 30px; max-width: 400px;
+            background: white; padding: 30px; max-width: 450px; /* Made wider for admin tools */
             margin: auto; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1);
             text-align: left;
         }
-        .center-content { text-align: center; }
-        label { font-weight: bold; font-size: 0.9em; display: block; margin-bottom: 5px; color: #555; }
+
+        input, select { 
+            padding: 10px; width: 92%; margin-bottom: 15px; 
+            border: 1px solid #ccc; border-radius: 5px; font-size: 14px;
+        }
+
+        /* ADMIN LIST STYLES */
+        #admin-results { margin-top: 15px; }
+        .user-card {
+            background: #fff0f5; border: 1px solid #ff0055; 
+            padding: 15px; margin-bottom: 10px; border-radius: 8px;
+        }
+        .user-card h4 { margin: 0 0 5px 0; color: #333; }
+        .user-card input { width: 90%; margin-bottom: 5px; padding: 5px; }
+        .user-card .btn-update { 
+            background-color: #ff0055; color: white; width: 100%; margin: 5px 0 0 0; padding: 8px;
+        }
+        .admin-badge { color: red; font-weight: bold; }
     </style>
 </head>
 <body>
 
     <div id="login-screen">
-        <h1>Welcome Back!</h1>
-        <p>Sign in to access your student profile.</p>
+        <h1>Welcome Back</h1>
         <button id="login-btn" class="btn-google">Sign in with Google</button>
     </div>
 
     <div id="profile-screen" class="hidden">
         <div id="profile-card">
-            <div class="center-content">
-                <img id="user-photo" src="" alt="User" style="width: 70px; border-radius: 50%; margin-bottom: 10px;">
-                <h2 id="user-name" style="margin: 5px 0;">User Name</h2>
-                <p style="color: gray; font-size: 0.9em;" id="user-email">email@example.com</p>
+            <div style="text-align: center;">
+                <img id="user-photo" src="" style="width: 70px; border-radius: 50%;">
+                <h2 id="user-name">User</h2>
+                <p id="user-email" style="color: gray;">email</p>
             </div>
             <hr>
             
-            <label>Your Role / Major:</label>
-            <input type="text" id="role-input" placeholder="e.g. Anthropology Honors">
-
-            <label>University Name:</label>
-            <input type="text" id="uni-input" placeholder="e.g. DSPMU Ranchi">
-
-            <label>Current Semester:</label>
+            <label>Role:</label>
+            <input type="text" id="role-input" placeholder="Role">
+            <label>University:</label>
+            <input type="text" id="uni-input" placeholder="University">
+            <label>Semester:</label>
             <select id="sem-input">
                 <option value="Sem 1">Semester 1</option>
                 <option value="Sem 2">Semester 2</option>
@@ -73,23 +75,22 @@
                 <option value="Sem 8">Semester 8</option>
             </select>
 
-            <button id="save-btn" class="btn-save">Save Profile</button>
-            <p id="status-msg" style="color: green; font-size: 0.9em; min-height: 20px; text-align: center;"></p>
+            <button id="save-btn" class="btn-save">Save My Profile</button>
+            <p id="status-msg" style="text-align: center; color: green;"></p>
             
             <div id="admin-section" class="hidden">
                 <hr>
-                <p style="color: #ff0055; font-weight: bold; text-align: center;">⚠ ADMIN PANEL</p>
-                <button id="admin-btn" class="btn-admin">Show All Users</button>
+                <p style="color: #ff0055; font-weight: bold; text-align: center;">⚠ ADMIN CONTROL PANEL</p>
+                <button id="admin-btn" class="btn-admin">Manage All Users</button>
                 <div id="admin-results" class="hidden"></div>
             </div>
 
-            <div class="center-content">
+            <div style="text-align: center;">
                 <button id="logout-btn" class="btn-logout">Sign Out</button>
             </div>
         </div>
     </div>
 
     <script type="module" src="app.js"></script>
-
 </body>
 </html>
