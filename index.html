@@ -16,8 +16,13 @@
         .btn-save { background-color: #0F9D58; color: white; width: 100%; }
         .btn-logout { background-color: #DB4437; color: white; margin-top: 20px;}
         
-        /* ADMIN BUTTON STYLE - Only you will see this */
-        .btn-admin { background-color: #000; color: #ff0055; border: 2px solid #ff0055; width: 100%; margin-top: 10px; }
+        /* ADMIN STYLES */
+        .btn-admin { background-color: #2c3e50; color: #ff0055; border: 2px solid #ff0055; width: 100%; margin-top: 10px; }
+        #admin-results { 
+            background: #ffe6eb; border: 1px solid #ff0055; 
+            padding: 10px; margin-top: 10px; border-radius: 5px; 
+            text-align: left; font-size: 0.9em;
+        }
 
         input, select { 
             padding: 10px; width: 90%; margin-bottom: 15px; 
@@ -73,8 +78,9 @@
             
             <div id="admin-section" class="hidden">
                 <hr>
-                <p style="color: #ff0055; font-weight: bold; text-align: center;">⚠ ADMIN PANEL DETECTED</p>
-                <button class="btn-admin" onclick="alert('Welcome Boss! Here you could see all user data.')">Open Admin Tools</button>
+                <p style="color: #ff0055; font-weight: bold; text-align: center;">⚠ ADMIN PANEL</p>
+                <button id="admin-btn" class="btn-admin">Show All Users</button>
+                <div id="admin-results" class="hidden"></div>
             </div>
 
             <div class="center-content">
