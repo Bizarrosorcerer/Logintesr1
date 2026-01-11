@@ -3,51 +3,76 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Student Profile App</title>
+    <title>Advanced Student Profile</title>
     <style>
-        body { font-family: sans-serif; text-align: center; padding: 50px; background-color: #f4f4f9; }
+        body { font-family: sans-serif; text-align: center; padding: 50px; background-color: #f0f2f5; }
         .hidden { display: none; }
         
+        /* Buttons */
         button {
-            padding: 10px 20px; font-size: 16px; cursor: pointer; 
-            border: none; border-radius: 5px; margin: 10px;
+            padding: 12px 24px; font-size: 16px; cursor: pointer; 
+            border: none; border-radius: 5px; margin: 10px; font-weight: bold;
         }
         .btn-google { background-color: #4285F4; color: white; }
-        .btn-save { background-color: #0F9D58; color: white; }
-        .btn-logout { background-color: #DB4437; color: white; }
+        .btn-save { background-color: #0F9D58; color: white; width: 100%; }
+        .btn-logout { background-color: #DB4437; color: white; margin-top: 20px;}
 
-        input { padding: 10px; width: 60%; margin-bottom: 10px; border: 1px solid #ccc; border-radius: 4px; }
-        
-        #profile-card {
-            background: white; padding: 20px; max-width: 400px;
-            margin: auto; border-radius: 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        /* Inputs */
+        input, select { 
+            padding: 10px; width: 90%; margin-bottom: 15px; 
+            border: 1px solid #ccc; border-radius: 5px; font-size: 14px;
         }
+        
+        /* Card Design */
+        #profile-card {
+            background: white; padding: 30px; max-width: 400px;
+            margin: auto; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            text-align: left; /* Aligns text to left inside the card */
+        }
+        .center-content { text-align: center; }
+        label { font-weight: bold; font-size: 0.9em; display: block; margin-bottom: 5px; color: #555; }
     </style>
 </head>
 <body>
 
     <div id="login-screen">
-        <h1>Welcome!</h1>
-        <p>Please sign in to continue.</p>
+        <h1>Welcome Back!</h1>
+        <p>Sign in to access your student profile.</p>
         <button id="login-btn" class="btn-google">Sign in with Google</button>
     </div>
 
     <div id="profile-screen" class="hidden">
         <div id="profile-card">
-            <img id="user-photo" src="" alt="User" style="width: 60px; border-radius: 50%;">
-            <h2 id="user-name">User Name</h2>
-            <p style="color: gray;" id="user-email">email@example.com</p>
+            <div class="center-content">
+                <img id="user-photo" src="" alt="User" style="width: 70px; border-radius: 50%; margin-bottom: 10px;">
+                <h2 id="user-name" style="margin: 5px 0;">User Name</h2>
+                <p style="color: gray; font-size: 0.9em;" id="user-email">email@example.com</p>
+            </div>
             <hr>
             
-            <h3>My Data</h3>
-            <p><strong>Your Role:</strong></p>
-            <input type="text" id="role-input" placeholder="E.g. Anthropology Student">
-            <br>
-            <button id="save-btn" class="btn-save">Save Data</button>
-            <p id="status-msg" style="color: green; font-size: 0.9em; min-height: 20px;"></p>
+            <label>Your Role / Major:</label>
+            <input type="text" id="role-input" placeholder="e.g. Anthropology Honors">
+
+            <label>University Name:</label>
+            <input type="text" id="uni-input" placeholder="e.g. DSPMU Ranchi">
+
+            <label>Current Semester:</label>
+            <select id="sem-input">
+                <option value="Sem 1">Semester 1</option>
+                <option value="Sem 2">Semester 2</option>
+                <option value="Sem 3">Semester 3</option>
+                <option value="Sem 4">Semester 4</option>
+                <option value="Sem 5">Semester 5</option>
+                <option value="Sem 6">Semester 6</option>
+                <option value="Sem 7">Semester 7</option>
+                <option value="Sem 8">Semester 8</option>
+            </select>
+            <button id="save-btn" class="btn-save">Save Profile</button>
+            <p id="status-msg" style="color: green; font-size: 0.9em; min-height: 20px; text-align: center;"></p>
             
-            <hr>
-            <button id="logout-btn" class="btn-logout">Sign Out</button>
+            <div class="center-content">
+                <button id="logout-btn" class="btn-logout">Sign Out</button>
+            </div>
         </div>
     </div>
 
