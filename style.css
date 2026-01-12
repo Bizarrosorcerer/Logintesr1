@@ -4,7 +4,18 @@ body { font-family: 'Poppins', sans-serif; margin: 0; padding: 0; background-col
 /* LOGIN */
 #login-screen { height: 100vh; display: flex; align-items: center; justify-content: center; }
 .login-card { background: white; padding: 40px; border-radius: 15px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); width: 90%; max-width: 350px; }
-input { width: 90%; padding: 12px; margin: 15px 0; border: 1px solid #ddd; border-radius: 8px; font-size: 16px; }
+
+/* FIXED INPUTS: Darker border so you can see them */
+input { 
+    width: 90%; 
+    padding: 12px; 
+    margin: 15px 0; 
+    border: 2px solid #555; /* Visible Border */
+    border-radius: 8px; 
+    font-size: 16px; 
+    background-color: #fff; 
+    color: #000;
+}
 
 /* BUTTONS */
 button { cursor: pointer; border: none; font-family: inherit; }
@@ -24,25 +35,46 @@ button { cursor: pointer; border: none; font-family: inherit; }
 .badge.ended { background: #ffe6e6; color: #d63031; }
 
 /* FAB */
-.fab { position: fixed; bottom: 30px; right: 30px; width: 60px; height: 60px; background: #6c5ce7; color: white; border-radius: 50%; font-size: 30px; box-shadow: 0 4px 15px rgba(108, 92, 231, 0.4); display: flex; align-items: center; justify-content: center; }
+.fab { position: fixed; bottom: 30px; right: 30px; width: 60px; height: 60px; background: #6c5ce7; color: white; border-radius: 50%; font-size: 30px; box-shadow: 0 4px 15px rgba(108, 92, 231, 0.4); display: flex; align-items: center; justify-content: center; z-index: 500; }
 
 /* SESSION DETAIL */
 .session-header { padding: 20px; display: flex; align-items: center; gap: 10px; background: white; }
 .stats-card { background: white; margin: 20px; padding: 20px; border-radius: 12px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
-.percentage-box { display: flex; flex-direction: column; text-align: left; }
 #attendance-percent { font-size: 2em; font-weight: bold; color: #0F9D58; }
 
-/* CALENDAR */
-.calendar-nav { display: flex; justify-content: space-between; align-items: center; padding: 0 20px; margin-bottom: 10px; }
-.calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; padding: 10px; max-width: 500px; margin: auto; }
-.day-name { font-weight: bold; font-size: 0.8em; color: #888; }
-.day-box { height: 45px; display: flex; align-items: center; justify-content: center; border-radius: 8px; font-size: 0.9em; font-weight: bold; cursor: pointer; user-select: none; }
+/* CALENDAR FIXES */
+.calendar-wrapper { max-width: 500px; margin: 0 auto; padding: 10px; }
+.calendar-nav { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
 
-/* DAY COLORS */
-.day-future { background: #eee; color: #bbb; cursor: default; } /* Grey */
-.day-present { background: #dcedc8; color: #33691e; border: 1px solid #8bc34a; } /* Green */
-.day-absent { background: #ffcdd2; color: #b71c1c; border: 1px solid #ef5350; } /* Red */
-.day-holiday { background: #bbdefb; color: #0d47a1; border: 1px solid #42a5f5; } /* Blue */
+/* Grid Container for Day Names (Sun, Mon...) */
+.day-names-row { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; margin-bottom: 5px; }
+.day-name { font-weight: bold; font-size: 0.8em; color: #888; }
+
+/* Grid Container for Dates (1, 2, 3...) */
+.calendar-days-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; }
+.day-box { height: 45px; display: flex; align-items: center; justify-content: center; border-radius: 8px; font-size: 0.9em; font-weight: bold; cursor: pointer; user-select: none; position: relative; }
+
+/* COLORS */
+.day-future { background: #eee; color: #bbb; cursor: default; } 
+.day-present { background: #dcedc8; color: #33691e; border: 1px solid #8bc34a; } 
+.day-absent { background: #ffcdd2; color: #b71c1c; border: 1px solid #ef5350; } 
+.day-holiday { background: #bbdefb; color: #0d47a1; border: 1px solid #42a5f5; } 
+
+/* SPECIAL START DATE MARKER */
+.start-date-marker {
+    border: 3px solid #6c5ce7 !important; /* Thick Purple Border */
+    box-shadow: 0 0 5px rgba(108, 92, 231, 0.5);
+}
+.start-date-marker::after {
+    content: "★";
+    position: absolute;
+    top: -8px;
+    right: -5px;
+    color: #6c5ce7;
+    font-size: 14px;
+    background: white;
+    border-radius: 50%;
+}
 
 /* MODAL */
 .modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 1000; }
