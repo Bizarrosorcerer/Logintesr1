@@ -31,7 +31,6 @@
             </div>
 
         <button id="add-session-fab" class="fab">+</button>
-        
         <p id="admin-link" class="hidden" style="margin-top:20px; color:#ff0055; cursor:pointer;">Admin Directory</p>
     </div>
 
@@ -52,21 +51,24 @@
             <button id="check-btn" class="btn-primary">Check Attendance</button>
         </div>
 
-        <div class="calendar-nav">
-            <button id="prev-month-btn">&lt;</button>
-            <h3 id="calendar-month-year">January 2026</h3>
-            <button id="next-month-btn">&gt;</button>
-        </div>
+        <div class="calendar-wrapper">
+            <div class="calendar-nav">
+                <button id="prev-month-btn">&lt;</button>
+                <h3 id="calendar-month-year">January 2026</h3>
+                <button id="next-month-btn">&gt;</button>
+            </div>
 
-        <div class="calendar-grid">
-            <div class="day-name">Sun</div>
-            <div class="day-name">Mon</div>
-            <div class="day-name">Tue</div>
-            <div class="day-name">Wed</div>
-            <div class="day-name">Thu</div>
-            <div class="day-name">Fri</div>
-            <div class="day-name">Sat</div>
-            <div id="calendar-days" class="days-container"></div>
+            <div class="day-names-row">
+                <div class="day-name">Sun</div>
+                <div class="day-name">Mon</div>
+                <div class="day-name">Tue</div>
+                <div class="day-name">Wed</div>
+                <div class="day-name">Thu</div>
+                <div class="day-name">Fri</div>
+                <div class="day-name">Sat</div>
+            </div>
+
+            <div id="calendar-days" class="calendar-days-grid"></div>
         </div>
 
         <div class="bottom-actions">
@@ -104,7 +106,7 @@
     <div id="admin-modal" class="modal hidden">
         <div class="modal-content">
             <h3>User Directory</h3>
-            <div id="admin-list" style="max-height: 200px; overflow-y: auto; text-align: left;"></div>
+            <div id="admin-list" style="max-height: 200px; overflow-y: auto;"></div>
             <button id="close-admin" class="btn-text" style="width:100%; margin-top:10px;">Close</button>
         </div>
     </div>
