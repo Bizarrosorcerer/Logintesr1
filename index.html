@@ -27,6 +27,8 @@
                     <img id="profile-img" src="https://via.placeholder.com/50" alt="Profile">
                     <div class="edit-overlay">📷</div>
                 </div>
+                <button id="remove-photo-btn" class="hidden" title="Remove Photo">×</button>
+                
                 <input type="file" id="profile-upload" accept="image/*" hidden>
 
                 <div class="user-info">
@@ -45,7 +47,7 @@
 
     <div id="session-detail-screen" class="hidden">
         <div class="session-header">
-            <button id="back-btn" class="btn-text">← Back</button>
+            <button id="back-btn" class="btn-secondary">← Back</button>
             <div class="session-info">
                 <h2 id="detail-title">Session Name</h2>
                 <small id="detail-dates">Dates...</small>
@@ -63,8 +65,7 @@
                 <span id="attendance-percent">--%</span>
                 <small>Attendance</small>
             </div>
-            <button id="check-btn" class="btn-primary">Check Attendance</button>
-        </div>
+            </div>
 
         <div class="calendar-wrapper">
             <div class="calendar-nav">
@@ -126,7 +127,7 @@
     <div id="admin-modal" class="modal hidden">
         <div class="modal-content">
             <h3>User Directory</h3>
-            <div id="admin-list" style="max-height: 200px; overflow-y: auto;"></div>
+            <div id="admin-list" style="max-height: 300px; overflow-y: auto;"></div>
             <button id="close-admin" class="btn-text" style="width:100%; margin-top:10px;">Close</button>
         </div>
     </div>
