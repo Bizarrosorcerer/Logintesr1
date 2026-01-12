@@ -17,34 +17,40 @@ const auth = getAuth(app);
 const db = getFirestore(app);
 const provider = new GoogleAuthProvider();
 
-// --- STATE VARIABLES ---
+// --- STATE ---
 let currentUser = null;
 let currentSessionId = null;
-let sessionExceptions = {}; // Stores { "2026-01-05": "Absent" }
-let sessionData = null; // Stores start/end date
-let viewDate = new Date(); // Controls Calendar Month
+let sessionExceptions = {}; 
+let sessionData = null; 
+let viewDate = new Date(); 
 
-// --- HOLIDAY DATA (Hardcoded) ---
 const fixedHolidays = [
-    "-01-01", "-01-26", "-08-15", "-10-02", "-12-25", // Recurring
-    "2026-03-04", "2026-04-03", "2026-03-20", "2026-10-20", // 2026 Festivals
-    "2027-03-22", "2027-03-26", "2027-03-09", "2027-10-09", "2027-10-29" // 2027 Festivals
+    "-01-01", "-01-26", "-08-15", "-10-02", "-12-25",
+    "2026-03-04", "2026-04-03", "2026-03-20", "2026-10-20", "2026-11-08",
+    "2027-03-22", "2027-03-26", "2027-03-09", "2027-10-09", "2027-10-29"
 ];
 
-// --- ELEMENTS ---
 const screens = {
     login: document.getElementById("login-screen"),
     dashboard: document.getElementById("dashboard-screen"),
     detail: document.getElementById("session-detail-screen")
 };
 
-// --- AUTHENTICATION ---
+// --- AUTH LOGIC (FIXED NAME ISSUE) ---
 onAuthStateChanged(auth, async (user) => {
     if (user) {
         currentUser = user;
-        showScreen('dashboard');
-        document.getElementById("user-name").innerText = user.displayName;
+        
+        // FIX: Fetch the custom name from Database immediately
+        const userDoc = await getDoc(doc(db, "users", user.uid));
+        if (userDoc.exists()) {
+            document.getElementById("user-name").innerText = userDoc.data().name;
+        } else {
+            document.getElementById("user-name").innerText = user.displayName;
+        }
+        
         document.getElementById("user-email").innerText = user.email;
+        showScreen('dashboard');
         loadSessions();
         checkAdmin();
     } else {
@@ -53,23 +59,24 @@ onAuthStateChanged(auth, async (user) => {
     }
 });
 
-// Login/Logout Buttons
+// LOGIN BUTTON
 document.getElementById("login-btn").addEventListener("click", () => {
     const nameInput = document.getElementById("display-name-input").value;
     if(!nameInput) return alert("Please enter your name first!");
     
     signInWithPopup(auth, provider).then(async (result) => {
-        // Save Name on first login
+        // Save Name
         await setDoc(doc(db, "users", result.user.uid), {
             name: nameInput,
             email: result.user.email
         }, { merge: true });
     });
 });
+
 document.getElementById("logout-btn").addEventListener("click", () => signOut(auth));
 
 
-// --- DASHBOARD LOGIC ---
+// --- DASHBOARD ---
 async function loadSessions() {
     const container = document.getElementById("sessions-container");
     container.innerHTML = "<p>Loading...</p>";
@@ -92,7 +99,6 @@ async function loadSessions() {
     });
 }
 
-// Create Session
 document.getElementById("add-session-fab").onclick = () => document.getElementById("create-modal").classList.remove("hidden");
 document.getElementById("cancel-create").onclick = () => document.getElementById("create-modal").classList.add("hidden");
 
@@ -116,23 +122,20 @@ document.getElementById("confirm-create").onclick = async () => {
 };
 
 
-// --- SESSION DETAIL LOGIC ---
+// --- SESSION DETAIL ---
 async function openSession(sessId, data) {
     currentSessionId = sessId;
     sessionData = data;
-    sessionExceptions = {}; // Clear old data
+    sessionExceptions = {};
 
-    // UI Setup
     document.getElementById("detail-title").innerText = data.name;
     document.getElementById("detail-dates").innerText = `${data.startDate} — ${data.status === 'Ended' ? data.endDate : 'Ongoing'}`;
     document.getElementById("attendance-percent").innerText = "--%";
     
-    // Load Exceptions (Absents/Holidays)
     const snap = await getDocs(collection(db, `users/${currentUser.uid}/sessions/${sessId}/exceptions`));
     snap.forEach(d => { sessionExceptions[d.id] = d.data().status; });
 
-    // Set Calendar to Current Month (Auto-Focus)
-    viewDate = new Date();
+    viewDate = new Date(); // Reset to current month on open
     renderCalendar();
     
     showScreen('detail');
@@ -141,16 +144,14 @@ async function openSession(sessId, data) {
 document.getElementById("back-btn").onclick = () => showScreen('dashboard');
 
 
-// --- CALENDAR RENDERER ---
+// --- CALENDAR RENDERER (FIXED) ---
 function renderCalendar() {
     const grid = document.getElementById("calendar-days");
     grid.innerHTML = "";
     
-    // Update Header
     const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
     document.getElementById("calendar-month-year").innerText = `${monthNames[viewDate.getMonth()]} ${viewDate.getFullYear()}`;
 
-    // Calculate Grid
     const firstDay = new Date(viewDate.getFullYear(), viewDate.getMonth(), 1).getDay();
     const daysInMonth = new Date(viewDate.getFullYear(), viewDate.getMonth() + 1, 0).getDate();
 
@@ -166,77 +167,63 @@ function renderCalendar() {
         div.className = "day-box";
         div.innerText = i;
         
-        // Date String "YYYY-MM-DD"
         const dateStr = `${viewDate.getFullYear()}-${String(viewDate.getMonth()+1).padStart(2,'0')}-${String(i).padStart(2,'0')}`;
         const currentObj = new Date(dateStr);
         const startObj = new Date(sessionData.startDate);
         const endObj = sessionData.endDate ? new Date(sessionData.endDate) : new Date();
         const today = new Date();
 
-        // 1. Future / Before Start Logic
+        // Future Logic
         if(currentObj < startObj || (sessionData.status === 'Ongoing' && currentObj > today) || (sessionData.status === 'Ended' && currentObj > endObj)) {
             div.classList.add("day-future");
         } else {
-            // 2. Status Logic
-            let status = "Present"; // Default Green
-            
-            // Auto-Holiday Check
-            if(isDefaultHoliday(dateStr)) status = "Holiday"; // Default Blue
-            
-            // Exception Override (Database)
+            let status = "Present";
+            if(isDefaultHoliday(dateStr)) status = "Holiday";
             if(sessionExceptions[dateStr]) status = sessionExceptions[dateStr];
 
             div.classList.add(`day-${status.toLowerCase()}`);
-
-            // Click Event (Toggle)
             div.onclick = () => toggleDay(dateStr, status);
+        }
+
+        // FIX: Add Star Marker if this is the Start Date
+        if(dateStr === sessionData.startDate) {
+            div.classList.add("start-date-marker");
         }
         
         grid.appendChild(div);
     }
 }
 
-// --- HELPER: CHECK HOLIDAY ---
 function isDefaultHoliday(dateStr) {
     const d = new Date(dateStr);
     if(d.getDay() === 0) return true; // Sunday
-    
     for(let h of fixedHolidays) {
         if(dateStr.endsWith(h) || dateStr === h) return true;
     }
     return false;
 }
 
-// --- TOGGLE ATTENDANCE ---
 async function toggleDay(dateStr, currentStatus) {
-    if(sessionData.status === "Ended") return alert("Session Ended. Cannot edit.");
+    if(sessionData.status === "Ended") return alert("Session Ended.");
     
     let newStatus = "Present";
     if(currentStatus === "Present") newStatus = "Absent";
     else if(currentStatus === "Absent") newStatus = "Holiday";
-    else if(currentStatus === "Holiday") newStatus = "Present"; // Back to Working Day
+    else if(currentStatus === "Holiday") newStatus = "Present"; 
 
-    // Optimistic UI Update
     sessionExceptions[dateStr] = newStatus;
     renderCalendar(); 
 
-    // Save to DB
     const ref = doc(db, `users/${currentUser.uid}/sessions/${currentSessionId}/exceptions`, dateStr);
     if(newStatus === "Present") {
-        // If "Present", we delete the exception (because Default = Present)
-        // BUT if it was a Default Holiday, we must save "Present" to override it.
-        if(isDefaultHoliday(dateStr)) {
-             await setDoc(ref, { status: "Present" });
-        } else {
-             await deleteDoc(ref);
-             delete sessionExceptions[dateStr];
-        }
+        if(isDefaultHoliday(dateStr)) await setDoc(ref, { status: "Present" });
+        else await deleteDoc(ref);
     } else {
         await setDoc(ref, { status: newStatus });
     }
 }
 
-// --- CALENDAR NAV ---
+// Nav Buttons
 document.getElementById("prev-month-btn").onclick = () => {
     if(viewDate.getFullYear() === 2026 && viewDate.getMonth() === 0) return;
     viewDate.setMonth(viewDate.getMonth() - 1);
@@ -248,30 +235,23 @@ document.getElementById("next-month-btn").onclick = () => {
     renderCalendar();
 };
 
-// --- ATTENDANCE CALCULATOR ---
 document.getElementById("check-btn").onclick = () => {
     document.getElementById("check-btn").innerText = "Calculating...";
-    
     let totalWorkingDays = 0;
     let daysPresent = 0;
-    
     let loopDate = new Date(sessionData.startDate);
     const stopDate = sessionData.endDate ? new Date(sessionData.endDate) : new Date();
 
     while(loopDate <= stopDate) {
         const dStr = loopDate.toISOString().split('T')[0];
-        
-        // Determine Status
         let status = "Present";
         if(isDefaultHoliday(dStr)) status = "Holiday";
         if(sessionExceptions[dStr]) status = sessionExceptions[dStr];
 
-        // Count
         if(status !== "Holiday") {
             totalWorkingDays++;
             if(status === "Present") daysPresent++;
         }
-        
         loopDate.setDate(loopDate.getDate() + 1);
     }
     
@@ -280,27 +260,19 @@ document.getElementById("check-btn").onclick = () => {
     document.getElementById("check-btn").innerText = "Check Attendance";
 };
 
-// --- END SESSION ---
+// END & ADMIN
 document.getElementById("end-session-btn").onclick = () => document.getElementById("end-modal").classList.remove("hidden");
 document.getElementById("cancel-end").onclick = () => document.getElementById("end-modal").classList.add("hidden");
-
 document.getElementById("confirm-end").onclick = async () => {
     const date = document.getElementById("end-session-date").value;
     if(!date) return;
-    if(new Date(date) < new Date(sessionData.startDate)) return alert("End date cannot be before Start date");
-    
-    await updateDoc(doc(db, `users/${currentUser.uid}/sessions`, currentSessionId), {
-        endDate: date,
-        status: "Ended"
-    });
-    
+    if(new Date(date) < new Date(sessionData.startDate)) return alert("Invalid date");
+    await updateDoc(doc(db, `users/${currentUser.uid}/sessions`, currentSessionId), { endDate: date, status: "Ended" });
     document.getElementById("end-modal").classList.add("hidden");
     loadSessions();
     showScreen('dashboard');
 };
 
-
-// --- UTILS & ADMIN ---
 function showScreen(id) {
     Object.values(screens).forEach(s => s.classList.add("hidden"));
     screens[id].classList.remove("hidden");
@@ -323,4 +295,4 @@ async function checkAdmin() {
         };
         document.getElementById("close-admin").onclick = () => document.getElementById("admin-modal").classList.add("hidden");
     }
-}
+                        }
