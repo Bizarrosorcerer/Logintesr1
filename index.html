@@ -13,22 +13,31 @@
         <div class="login-card">
             <h1>Welcome Student</h1>
             <p>Track your attendance across multiple sessions.</p>
-            <input type="text" id="display-name-input" placeholder="Enter your Name (e.g. Nikhil)">
+            <div id="first-time-setup" class="hidden">
+                <input type="text" id="display-name-input" placeholder="Enter your Name (e.g. Nikhil)">
+            </div>
             <button id="login-btn" class="btn-google">Sign in with Google</button>
         </div>
     </div>
 
     <div id="dashboard-screen" class="hidden">
         <div class="app-header">
-            <div>
-                <h2 id="user-name">Student</h2>
-                <small id="user-email">email@example.com</small>
+            <div class="profile-section">
+                <div class="profile-img-container" id="profile-pic-wrapper">
+                    <img id="profile-img" src="https://via.placeholder.com/50" alt="Profile">
+                    <div class="edit-overlay">📷</div>
+                </div>
+                <input type="file" id="profile-upload" accept="image/*" hidden>
+
+                <div class="user-info">
+                    <h2 id="user-name">Student <span id="edit-name-btn">✎</span></h2>
+                    <small id="user-email">email@example.com</small>
+                </div>
             </div>
             <button id="logout-btn" class="btn-small">Logout</button>
         </div>
 
-        <div id="sessions-container">
-            </div>
+        <div id="sessions-container"></div>
 
         <button id="add-session-fab" class="fab">+</button>
         <p id="admin-link" class="hidden" style="margin-top:20px; color:#ff0055; cursor:pointer;">Admin Directory</p>
@@ -41,6 +50,12 @@
                 <h2 id="detail-title">Session Name</h2>
                 <small id="detail-dates">Dates...</small>
             </div>
+        </div>
+
+        <div class="legend-bar">
+            <span class="legend-item"><span class="dot green"></span> Present</span>
+            <span class="legend-item"><span class="dot red"></span> Absent</span>
+            <span class="legend-item"><span class="dot blue"></span> Holiday</span>
         </div>
 
         <div class="stats-card">
@@ -57,17 +72,11 @@
                 <h3 id="calendar-month-year">January 2026</h3>
                 <button id="next-month-btn">&gt;</button>
             </div>
-
             <div class="day-names-row">
-                <div class="day-name">Sun</div>
-                <div class="day-name">Mon</div>
-                <div class="day-name">Tue</div>
-                <div class="day-name">Wed</div>
-                <div class="day-name">Thu</div>
-                <div class="day-name">Fri</div>
+                <div class="day-name">Sun</div><div class="day-name">Mon</div><div class="day-name">Tue</div>
+                <div class="day-name">Wed</div><div class="day-name">Thu</div><div class="day-name">Fri</div>
                 <div class="day-name">Sat</div>
             </div>
-
             <div id="calendar-days" class="calendar-days-grid"></div>
         </div>
 
@@ -99,6 +108,17 @@
             <div class="modal-actions">
                 <button id="cancel-end" class="btn-text">Cancel</button>
                 <button id="confirm-end" class="btn-danger">End Forever</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="edit-name-modal" class="modal hidden">
+        <div class="modal-content">
+            <h3>Edit Name</h3>
+            <input type="text" id="edit-name-input">
+            <div class="modal-actions">
+                <button id="cancel-edit-name" class="btn-text">Cancel</button>
+                <button id="save-name-btn" class="btn-primary">Save</button>
             </div>
         </div>
     </div>
