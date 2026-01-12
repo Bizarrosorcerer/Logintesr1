@@ -1,9 +1,8 @@
-// 1. IMPORT FIREBASE TOOLS (CRITICAL: Added 'collection' and 'getDocs')
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-app.js";
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-auth.js";
-import { getFirestore, doc, getDoc, setDoc, collection, getDocs } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-firestore.js";
+import { getFirestore, doc, getDoc, setDoc, collection, addDoc, getDocs, updateDoc, deleteDoc, query, orderBy } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-firestore.js";
 
-// 2. YOUR CONFIG
+// --- CONFIG ---
 const firebaseConfig = {
     apiKey: "AIzaSyDAUrjhba6zQS47RpS4jH0QyvAw3U7dlcw",
     authDomain: "logintester1-e9b27.firebaseapp.com",
@@ -13,133 +12,315 @@ const firebaseConfig = {
     appId: "1:939798745204:web:cc88423e2ed867734f0121"
 };
 
-// 3. START APP
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 const provider = new GoogleAuthProvider();
 
-// 4. GET HTML ELEMENTS
-const loginScreen = document.getElementById("login-screen");
-const profileScreen = document.getElementById("profile-screen");
-const loginBtn = document.getElementById("login-btn");
-const logoutBtn = document.getElementById("logout-btn");
-const saveBtn = document.getElementById("save-btn");
-const statusMsg = document.getElementById("status-msg");
+// --- STATE VARIABLES ---
+let currentUser = null;
+let currentSessionId = null;
+let sessionExceptions = {}; // Stores { "2026-01-05": "Absent" }
+let sessionData = null; // Stores start/end date
+let viewDate = new Date(); // Controls Calendar Month
 
-// Admin Elements
-const adminSection = document.getElementById("admin-section");
-const adminBtn = document.getElementById("admin-btn");
-const adminResults = document.getElementById("admin-results");
+// --- HOLIDAY DATA (Hardcoded) ---
+const fixedHolidays = [
+    "-01-01", "-01-26", "-08-15", "-10-02", "-12-25", // Recurring
+    "2026-03-04", "2026-04-03", "2026-03-20", "2026-10-20", // 2026 Festivals
+    "2027-03-22", "2027-03-26", "2027-03-09", "2027-10-09", "2027-10-29" // 2027 Festivals
+];
 
-// Input Fields
-const roleInput = document.getElementById("role-input");
-const uniInput = document.getElementById("uni-input");
-const semInput = document.getElementById("sem-input");
+// --- ELEMENTS ---
+const screens = {
+    login: document.getElementById("login-screen"),
+    dashboard: document.getElementById("dashboard-screen"),
+    detail: document.getElementById("session-detail-screen")
+};
 
-// ==========================================
-// LOGIC
-// ==========================================
-
-// LISTEN FOR LOGIN
+// --- AUTHENTICATION ---
 onAuthStateChanged(auth, async (user) => {
     if (user) {
-        // RESET UI: Hide admin panel immediately to prevent leaks
-        adminSection.classList.add("hidden");
-        adminResults.classList.add("hidden");
-
-        loginScreen.classList.add("hidden");
-        profileScreen.classList.remove("hidden");
-
+        currentUser = user;
+        showScreen('dashboard');
         document.getElementById("user-name").innerText = user.displayName;
         document.getElementById("user-email").innerText = user.email;
-        document.getElementById("user-photo").src = user.photoURL;
+        loadSessions();
+        checkAdmin();
+    } else {
+        currentUser = null;
+        showScreen('login');
+    }
+});
 
-        // LOAD DATA
-        const docRef = doc(db, "users", user.uid);
-        const docSnap = await getDoc(docRef);
+// Login/Logout Buttons
+document.getElementById("login-btn").addEventListener("click", () => {
+    const nameInput = document.getElementById("display-name-input").value;
+    if(!nameInput) return alert("Please enter your name first!");
+    
+    signInWithPopup(auth, provider).then(async (result) => {
+        // Save Name on first login
+        await setDoc(doc(db, "users", result.user.uid), {
+            name: nameInput,
+            email: result.user.email
+        }, { merge: true });
+    });
+});
+document.getElementById("logout-btn").addEventListener("click", () => signOut(auth));
+
+
+// --- DASHBOARD LOGIC ---
+async function loadSessions() {
+    const container = document.getElementById("sessions-container");
+    container.innerHTML = "<p>Loading...</p>";
+    
+    const q = query(collection(db, `users/${currentUser.uid}/sessions`), orderBy("startDate", "desc"));
+    const snapshot = await getDocs(q);
+    
+    container.innerHTML = "";
+    snapshot.forEach(docSnap => {
+        const data = docSnap.data();
+        const div = document.createElement("div");
+        div.className = "session-card";
+        div.innerHTML = `
+            <h3>${data.name}</h3>
+            <p>Started: ${data.startDate}</p>
+            <span class="badge ${data.status.toLowerCase()}">${data.status}</span>
+        `;
+        div.onclick = () => openSession(docSnap.id, data);
+        container.appendChild(div);
+    });
+}
+
+// Create Session
+document.getElementById("add-session-fab").onclick = () => document.getElementById("create-modal").classList.remove("hidden");
+document.getElementById("cancel-create").onclick = () => document.getElementById("create-modal").classList.add("hidden");
+
+document.getElementById("confirm-create").onclick = async () => {
+    const name = document.getElementById("new-session-name").value;
+    const date = document.getElementById("new-session-date").value;
+    
+    if(!name || !date) return alert("Fill all fields");
+    if(new Date(date) > new Date()) return alert("Cannot start in future");
+    if(new Date(date) < new Date("2026-01-01")) return alert("Cannot start before 2026");
+
+    await addDoc(collection(db, `users/${currentUser.uid}/sessions`), {
+        name: name,
+        startDate: date,
+        endDate: null,
+        status: "Ongoing"
+    });
+    
+    document.getElementById("create-modal").classList.add("hidden");
+    loadSessions();
+};
+
+
+// --- SESSION DETAIL LOGIC ---
+async function openSession(sessId, data) {
+    currentSessionId = sessId;
+    sessionData = data;
+    sessionExceptions = {}; // Clear old data
+
+    // UI Setup
+    document.getElementById("detail-title").innerText = data.name;
+    document.getElementById("detail-dates").innerText = `${data.startDate} — ${data.status === 'Ended' ? data.endDate : 'Ongoing'}`;
+    document.getElementById("attendance-percent").innerText = "--%";
+    
+    // Load Exceptions (Absents/Holidays)
+    const snap = await getDocs(collection(db, `users/${currentUser.uid}/sessions/${sessId}/exceptions`));
+    snap.forEach(d => { sessionExceptions[d.id] = d.data().status; });
+
+    // Set Calendar to Current Month (Auto-Focus)
+    viewDate = new Date();
+    renderCalendar();
+    
+    showScreen('detail');
+}
+
+document.getElementById("back-btn").onclick = () => showScreen('dashboard');
+
+
+// --- CALENDAR RENDERER ---
+function renderCalendar() {
+    const grid = document.getElementById("calendar-days");
+    grid.innerHTML = "";
+    
+    // Update Header
+    const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+    document.getElementById("calendar-month-year").innerText = `${monthNames[viewDate.getMonth()]} ${viewDate.getFullYear()}`;
+
+    // Calculate Grid
+    const firstDay = new Date(viewDate.getFullYear(), viewDate.getMonth(), 1).getDay();
+    const daysInMonth = new Date(viewDate.getFullYear(), viewDate.getMonth() + 1, 0).getDate();
+
+    // Empty Slots
+    for(let i=0; i<firstDay; i++) {
+        const div = document.createElement("div");
+        grid.appendChild(div);
+    }
+
+    // Days
+    for(let i=1; i<=daysInMonth; i++) {
+        const div = document.createElement("div");
+        div.className = "day-box";
+        div.innerText = i;
         
-        if (docSnap.exists()) {
-            const data = docSnap.data();
-            roleInput.value = data.role || "";
-            uniInput.value = data.university || ""; 
-            semInput.value = data.semester || "Sem 1";
+        // Date String "YYYY-MM-DD"
+        const dateStr = `${viewDate.getFullYear()}-${String(viewDate.getMonth()+1).padStart(2,'0')}-${String(i).padStart(2,'0')}`;
+        const currentObj = new Date(dateStr);
+        const startObj = new Date(sessionData.startDate);
+        const endObj = sessionData.endDate ? new Date(sessionData.endDate) : new Date();
+        const today = new Date();
+
+        // 1. Future / Before Start Logic
+        if(currentObj < startObj || (sessionData.status === 'Ongoing' && currentObj > today) || (sessionData.status === 'Ended' && currentObj > endObj)) {
+            div.classList.add("day-future");
+        } else {
+            // 2. Status Logic
+            let status = "Present"; // Default Green
             
-            // CHECK FOR ADMIN BADGE
-            if (data.isAdmin === true) {
-                adminSection.classList.remove("hidden"); // Reveal Admin Button
-            }
+            // Auto-Holiday Check
+            if(isDefaultHoliday(dateStr)) status = "Holiday"; // Default Blue
+            
+            // Exception Override (Database)
+            if(sessionExceptions[dateStr]) status = sessionExceptions[dateStr];
+
+            div.classList.add(`day-${status.toLowerCase()}`);
+
+            // Click Event (Toggle)
+            div.onclick = () => toggleDay(dateStr, status);
+        }
+        
+        grid.appendChild(div);
+    }
+}
+
+// --- HELPER: CHECK HOLIDAY ---
+function isDefaultHoliday(dateStr) {
+    const d = new Date(dateStr);
+    if(d.getDay() === 0) return true; // Sunday
+    
+    for(let h of fixedHolidays) {
+        if(dateStr.endsWith(h) || dateStr === h) return true;
+    }
+    return false;
+}
+
+// --- TOGGLE ATTENDANCE ---
+async function toggleDay(dateStr, currentStatus) {
+    if(sessionData.status === "Ended") return alert("Session Ended. Cannot edit.");
+    
+    let newStatus = "Present";
+    if(currentStatus === "Present") newStatus = "Absent";
+    else if(currentStatus === "Absent") newStatus = "Holiday";
+    else if(currentStatus === "Holiday") newStatus = "Present"; // Back to Working Day
+
+    // Optimistic UI Update
+    sessionExceptions[dateStr] = newStatus;
+    renderCalendar(); 
+
+    // Save to DB
+    const ref = doc(db, `users/${currentUser.uid}/sessions/${currentSessionId}/exceptions`, dateStr);
+    if(newStatus === "Present") {
+        // If "Present", we delete the exception (because Default = Present)
+        // BUT if it was a Default Holiday, we must save "Present" to override it.
+        if(isDefaultHoliday(dateStr)) {
+             await setDoc(ref, { status: "Present" });
+        } else {
+             await deleteDoc(ref);
+             delete sessionExceptions[dateStr];
         }
     } else {
-        // LOGGED OUT
-        loginScreen.classList.remove("hidden");
-        profileScreen.classList.add("hidden");
-        adminSection.classList.add("hidden");
+        await setDoc(ref, { status: newStatus });
     }
-});
+}
 
-// LOGIN
-loginBtn.addEventListener("click", () => {
-    signInWithPopup(auth, provider).catch((error) => alert(error.message));
-});
+// --- CALENDAR NAV ---
+document.getElementById("prev-month-btn").onclick = () => {
+    if(viewDate.getFullYear() === 2026 && viewDate.getMonth() === 0) return;
+    viewDate.setMonth(viewDate.getMonth() - 1);
+    renderCalendar();
+};
+document.getElementById("next-month-btn").onclick = () => {
+    if(viewDate.getFullYear() === 2027 && viewDate.getMonth() === 11) return;
+    viewDate.setMonth(viewDate.getMonth() + 1);
+    renderCalendar();
+};
 
-// LOGOUT
-logoutBtn.addEventListener("click", () => {
-    signOut(auth);
-});
+// --- ATTENDANCE CALCULATOR ---
+document.getElementById("check-btn").onclick = () => {
+    document.getElementById("check-btn").innerText = "Calculating...";
+    
+    let totalWorkingDays = 0;
+    let daysPresent = 0;
+    
+    let loopDate = new Date(sessionData.startDate);
+    const stopDate = sessionData.endDate ? new Date(sessionData.endDate) : new Date();
 
-// SAVE DATA
-saveBtn.addEventListener("click", async () => {
-    const user = auth.currentUser;
-    if (user) {
-        statusMsg.innerText = "Saving...";
-        try {
-            await setDoc(doc(db, "users", user.uid), {
-                name: user.displayName,
-                email: user.email,
-                role: roleInput.value,
-                university: uniInput.value,
-                semester: semInput.value
-                // We do NOT save isAdmin here to protect it
-            }, { merge: true });
-            
-            statusMsg.innerText = "✅ Profile Updated!";
-            setTimeout(() => statusMsg.innerText = "", 3000);
-        } catch (error) {
-            console.error(error);
-            statusMsg.innerText = "Error saving data";
-        }
-    }
-});
-
-// --- THE NEW CODE TO SHOW ALL USERS ---
-// This was likely missing or incomplete before!
-if (adminBtn) {
-    adminBtn.addEventListener("click", async () => {
-        adminResults.innerHTML = "Loading...";
-        adminResults.classList.remove("hidden");
+    while(loopDate <= stopDate) {
+        const dStr = loopDate.toISOString().split('T')[0];
         
-        try {
-            // 1. Get all documents from the "users" collection
-            const querySnapshot = await getDocs(collection(db, "users"));
-            
-            // 2. Clear the box
-            adminResults.innerHTML = "<h3>User List:</h3>";
-            
-            // 3. Loop through each user and add them to the box
-            querySnapshot.forEach((doc) => {
-                const userData = doc.data();
-                adminResults.innerHTML += `
-                    <div style="border-bottom: 1px solid #ccc; padding: 10px; margin-bottom: 5px;">
-                        <strong>Name:</strong> ${userData.name} <br>
-                        <small>Email: ${userData.email}</small> <br>
-                        <small>Role: ${userData.role || "Not set"}</small>
-                    </div>
-                `;
-            });
-        } catch (error) {
-            console.error(error);
-            adminResults.innerText = "Error fetching users! (Check Console)";
+        // Determine Status
+        let status = "Present";
+        if(isDefaultHoliday(dStr)) status = "Holiday";
+        if(sessionExceptions[dStr]) status = sessionExceptions[dStr];
+
+        // Count
+        if(status !== "Holiday") {
+            totalWorkingDays++;
+            if(status === "Present") daysPresent++;
         }
+        
+        loopDate.setDate(loopDate.getDate() + 1);
+    }
+    
+    const percent = totalWorkingDays === 0 ? 100 : Math.round((daysPresent / totalWorkingDays) * 100);
+    document.getElementById("attendance-percent").innerText = `${percent}%`;
+    document.getElementById("check-btn").innerText = "Check Attendance";
+};
+
+// --- END SESSION ---
+document.getElementById("end-session-btn").onclick = () => document.getElementById("end-modal").classList.remove("hidden");
+document.getElementById("cancel-end").onclick = () => document.getElementById("end-modal").classList.add("hidden");
+
+document.getElementById("confirm-end").onclick = async () => {
+    const date = document.getElementById("end-session-date").value;
+    if(!date) return;
+    if(new Date(date) < new Date(sessionData.startDate)) return alert("End date cannot be before Start date");
+    
+    await updateDoc(doc(db, `users/${currentUser.uid}/sessions`, currentSessionId), {
+        endDate: date,
+        status: "Ended"
     });
+    
+    document.getElementById("end-modal").classList.add("hidden");
+    loadSessions();
+    showScreen('dashboard');
+};
+
+
+// --- UTILS & ADMIN ---
+function showScreen(id) {
+    Object.values(screens).forEach(s => s.classList.add("hidden"));
+    screens[id].classList.remove("hidden");
+}
+
+async function checkAdmin() {
+    const docSnap = await getDoc(doc(db, "users", currentUser.uid));
+    if(docSnap.exists() && docSnap.data().isAdmin) {
+        document.getElementById("admin-link").classList.remove("hidden");
+        document.getElementById("admin-link").onclick = async () => {
+            document.getElementById("admin-modal").classList.remove("hidden");
+            const list = document.getElementById("admin-list");
+            list.innerHTML = "Loading...";
+            const allUsers = await getDocs(collection(db, "users"));
+            list.innerHTML = "";
+            allUsers.forEach(u => {
+                const d = u.data();
+                list.innerHTML += `<div style="border-bottom:1px solid #eee; padding:5px;"><b>${d.name}</b><br><small>${d.email}</small></div>`;
+            });
+        };
+        document.getElementById("close-admin").onclick = () => document.getElementById("admin-modal").classList.add("hidden");
+    }
 }
