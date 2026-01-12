@@ -36,44 +36,94 @@ const screens = {
     detail: document.getElementById("session-detail-screen")
 };
 
-// --- AUTH LOGIC (FIXED NAME ISSUE) ---
+// --- SMART AUTH ---
 onAuthStateChanged(auth, async (user) => {
     if (user) {
         currentUser = user;
         
-        // FIX: Fetch the custom name from Database immediately
+        // 1. Check if Name Exists in DB
         const userDoc = await getDoc(doc(db, "users", user.uid));
-        if (userDoc.exists()) {
-            document.getElementById("user-name").innerText = userDoc.data().name;
-        } else {
-            document.getElementById("user-name").innerText = user.displayName;
-        }
         
-        document.getElementById("user-email").innerText = user.email;
-        showScreen('dashboard');
-        loadSessions();
-        checkAdmin();
+        if (userDoc.exists() && userDoc.data().name) {
+            // Existing User: Go to Dashboard
+            loadProfile(userDoc.data());
+            showScreen('dashboard');
+            loadSessions();
+            checkAdmin();
+        } else {
+            // New User: Stay on Login but show Name Input
+            document.getElementById("first-time-setup").classList.remove("hidden");
+            // If they are on the login screen, they need to click "Sign in" again to save the name
+            // Or we can save it now if we have it. 
+            // Better logic: If logged in but no name, prompt name modal or use Dashboard edit.
+            // Let's force them to fill name in the login screen input and click button.
+        }
     } else {
         currentUser = null;
         showScreen('login');
+        document.getElementById("first-time-setup").classList.add("hidden"); // Hide for next fresh load
     }
 });
 
+function loadProfile(data) {
+    document.getElementById("user-name").innerHTML = `${data.name} <span id="edit-name-btn">✎</span>`;
+    document.getElementById("user-email").innerText = data.email;
+    if(data.photo) document.getElementById("profile-img").src = data.photo;
+    
+    // Re-attach Edit Listener
+    document.getElementById("edit-name-btn").onclick = () => document.getElementById("edit-name-modal").classList.remove("hidden");
+}
+
 // LOGIN BUTTON
 document.getElementById("login-btn").addEventListener("click", () => {
+    // If Name Input is visible, it MUST be filled
+    const isSetupMode = !document.getElementById("first-time-setup").classList.contains("hidden");
     const nameInput = document.getElementById("display-name-input").value;
-    if(!nameInput) return alert("Please enter your name first!");
-    
+
+    if(isSetupMode && !nameInput) return alert("Please enter your name to complete setup!");
+
     signInWithPopup(auth, provider).then(async (result) => {
-        // Save Name
-        await setDoc(doc(db, "users", result.user.uid), {
-            name: nameInput,
-            email: result.user.email
-        }, { merge: true });
+        // If it was setup mode, save the name
+        if(isSetupMode && nameInput) {
+            await setDoc(doc(db, "users", result.user.uid), {
+                name: nameInput,
+                email: result.user.email,
+                photo: null // Init photo
+            }, { merge: true });
+            
+            // Reload to trigger AuthStateChanged
+            window.location.reload(); 
+        }
     });
 });
-
 document.getElementById("logout-btn").addEventListener("click", () => signOut(auth));
+
+
+// --- PROFILE EDIT ---
+document.getElementById("save-name-btn").onclick = async () => {
+    const newName = document.getElementById("edit-name-input").value;
+    if(!newName) return;
+    await updateDoc(doc(db, "users", currentUser.uid), { name: newName });
+    document.getElementById("user-name").innerHTML = `${newName} <span id="edit-name-btn">✎</span>`;
+    document.getElementById("edit-name-modal").classList.add("hidden");
+};
+document.getElementById("cancel-edit-name").onclick = () => document.getElementById("edit-name-modal").classList.add("hidden");
+
+// IMAGE UPLOAD
+document.getElementById("profile-pic-wrapper").onclick = () => document.getElementById("profile-upload").click();
+document.getElementById("profile-upload").onchange = async (e) => {
+    const file = e.target.files[0];
+    if(!file) return;
+    
+    // Convert to Base64 (Keep it simple for free hosting)
+    const reader = new FileReader();
+    reader.onload = async function(evt) {
+        const base64 = evt.target.result;
+        document.getElementById("profile-img").src = base64;
+        await updateDoc(doc(db, "users", currentUser.uid), { photo: base64 });
+    };
+    reader.readAsDataURL(file);
+};
 
 
 // --- DASHBOARD ---
@@ -132,10 +182,17 @@ async function openSession(sessId, data) {
     document.getElementById("detail-dates").innerText = `${data.startDate} — ${data.status === 'Ended' ? data.endDate : 'Ongoing'}`;
     document.getElementById("attendance-percent").innerText = "--%";
     
+    // HIDE END BUTTON IF ENDED
+    if(data.status === "Ended") {
+        document.getElementById("end-session-btn").classList.add("hidden");
+    } else {
+        document.getElementById("end-session-btn").classList.remove("hidden");
+    }
+
     const snap = await getDocs(collection(db, `users/${currentUser.uid}/sessions/${sessId}/exceptions`));
     snap.forEach(d => { sessionExceptions[d.id] = d.data().status; });
 
-    viewDate = new Date(); // Reset to current month on open
+    viewDate = new Date(); 
     renderCalendar();
     
     showScreen('detail');
@@ -144,7 +201,7 @@ async function openSession(sessId, data) {
 document.getElementById("back-btn").onclick = () => showScreen('dashboard');
 
 
-// --- CALENDAR RENDERER (FIXED) ---
+// --- CALENDAR RENDERER ---
 function renderCalendar() {
     const grid = document.getElementById("calendar-days");
     grid.innerHTML = "";
@@ -185,9 +242,13 @@ function renderCalendar() {
             div.onclick = () => toggleDay(dateStr, status);
         }
 
-        // FIX: Add Star Marker if this is the Start Date
+        // Start Date Marker (Star)
         if(dateStr === sessionData.startDate) {
             div.classList.add("start-date-marker");
+        }
+        // End Date Marker (Flag)
+        if(sessionData.status === 'Ended' && dateStr === sessionData.endDate) {
+            div.classList.add("end-date-marker");
         }
         
         grid.appendChild(div);
@@ -196,7 +257,7 @@ function renderCalendar() {
 
 function isDefaultHoliday(dateStr) {
     const d = new Date(dateStr);
-    if(d.getDay() === 0) return true; // Sunday
+    if(d.getDay() === 0) return true; 
     for(let h of fixedHolidays) {
         if(dateStr.endsWith(h) || dateStr === h) return true;
     }
@@ -204,7 +265,8 @@ function isDefaultHoliday(dateStr) {
 }
 
 async function toggleDay(dateStr, currentStatus) {
-    if(sessionData.status === "Ended") return alert("Session Ended.");
+    // LOCK EDITING IF ENDED
+    if(sessionData.status === "Ended") return alert("Session Ended. Cannot edit.");
     
     let newStatus = "Present";
     if(currentStatus === "Present") newStatus = "Absent";
@@ -255,12 +317,17 @@ document.getElementById("check-btn").onclick = () => {
         loopDate.setDate(loopDate.getDate() + 1);
     }
     
-    const percent = totalWorkingDays === 0 ? 100 : Math.round((daysPresent / totalWorkingDays) * 100);
-    document.getElementById("attendance-percent").innerText = `${percent}%`;
+    // EXACT CALCULATION
+    let percent = 100;
+    if(totalWorkingDays > 0) {
+        percent = (daysPresent / totalWorkingDays) * 100;
+    }
+    // Show 2 decimal places (e.g., 85.71%)
+    document.getElementById("attendance-percent").innerText = `${percent.toFixed(2)}%`;
     document.getElementById("check-btn").innerText = "Check Attendance";
 };
 
-// END & ADMIN
+// END SESSION
 document.getElementById("end-session-btn").onclick = () => document.getElementById("end-modal").classList.remove("hidden");
 document.getElementById("cancel-end").onclick = () => document.getElementById("end-modal").classList.add("hidden");
 document.getElementById("confirm-end").onclick = async () => {
@@ -295,4 +362,4 @@ async function checkAdmin() {
         };
         document.getElementById("close-admin").onclick = () => document.getElementById("admin-modal").classList.add("hidden");
     }
-                        }
+}
