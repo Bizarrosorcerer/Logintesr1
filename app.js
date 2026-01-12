@@ -36,62 +36,59 @@ const screens = {
     detail: document.getElementById("session-detail-screen")
 };
 
-// --- SMART AUTH ---
+// --- AUTH & SETUP ---
 onAuthStateChanged(auth, async (user) => {
     if (user) {
         currentUser = user;
-        
-        // 1. Check if Name Exists in DB
         const userDoc = await getDoc(doc(db, "users", user.uid));
         
         if (userDoc.exists() && userDoc.data().name) {
-            // Existing User: Go to Dashboard
             loadProfile(userDoc.data());
             showScreen('dashboard');
             loadSessions();
             checkAdmin();
         } else {
-            // New User: Stay on Login but show Name Input
             document.getElementById("first-time-setup").classList.remove("hidden");
-            // If they are on the login screen, they need to click "Sign in" again to save the name
-            // Or we can save it now if we have it. 
-            // Better logic: If logged in but no name, prompt name modal or use Dashboard edit.
-            // Let's force them to fill name in the login screen input and click button.
         }
     } else {
         currentUser = null;
         showScreen('login');
-        document.getElementById("first-time-setup").classList.add("hidden"); // Hide for next fresh load
+        document.getElementById("first-time-setup").classList.add("hidden");
     }
 });
 
 function loadProfile(data) {
     document.getElementById("user-name").innerHTML = `${data.name} <span id="edit-name-btn">✎</span>`;
     document.getElementById("user-email").innerText = data.email;
-    if(data.photo) document.getElementById("profile-img").src = data.photo;
     
-    // Re-attach Edit Listener
+    // Handle Photo Logic
+    const img = document.getElementById("profile-img");
+    const removeBtn = document.getElementById("remove-photo-btn");
+    
+    if(data.photo) {
+        img.src = data.photo;
+        removeBtn.classList.remove("hidden");
+    } else {
+        img.src = "https://via.placeholder.com/50";
+        removeBtn.classList.add("hidden");
+    }
+    
     document.getElementById("edit-name-btn").onclick = () => document.getElementById("edit-name-modal").classList.remove("hidden");
 }
 
-// LOGIN BUTTON
 document.getElementById("login-btn").addEventListener("click", () => {
-    // If Name Input is visible, it MUST be filled
     const isSetupMode = !document.getElementById("first-time-setup").classList.contains("hidden");
     const nameInput = document.getElementById("display-name-input").value;
 
-    if(isSetupMode && !nameInput) return alert("Please enter your name to complete setup!");
+    if(isSetupMode && !nameInput) return alert("Please enter your name!");
 
     signInWithPopup(auth, provider).then(async (result) => {
-        // If it was setup mode, save the name
         if(isSetupMode && nameInput) {
             await setDoc(doc(db, "users", result.user.uid), {
                 name: nameInput,
                 email: result.user.email,
-                photo: null // Init photo
+                photo: null
             }, { merge: true });
-            
-            // Reload to trigger AuthStateChanged
             window.location.reload(); 
         }
     });
@@ -99,7 +96,7 @@ document.getElementById("login-btn").addEventListener("click", () => {
 document.getElementById("logout-btn").addEventListener("click", () => signOut(auth));
 
 
-// --- PROFILE EDIT ---
+// --- PROFILE ACTIONS ---
 document.getElementById("save-name-btn").onclick = async () => {
     const newName = document.getElementById("edit-name-input").value;
     if(!newName) return;
@@ -109,20 +106,33 @@ document.getElementById("save-name-btn").onclick = async () => {
 };
 document.getElementById("cancel-edit-name").onclick = () => document.getElementById("edit-name-modal").classList.add("hidden");
 
-// IMAGE UPLOAD
+// UPLOAD PHOTO (Increased Limit to 5MB)
 document.getElementById("profile-pic-wrapper").onclick = () => document.getElementById("profile-upload").click();
 document.getElementById("profile-upload").onchange = async (e) => {
     const file = e.target.files[0];
     if(!file) return;
     
-    // Convert to Base64 (Keep it simple for free hosting)
+    // 5MB Limit
+    if (file.size > 5 * 1024 * 1024) return alert("Image too large (Max 5MB)");
+
     const reader = new FileReader();
     reader.onload = async function(evt) {
         const base64 = evt.target.result;
         document.getElementById("profile-img").src = base64;
+        document.getElementById("remove-photo-btn").classList.remove("hidden");
         await updateDoc(doc(db, "users", currentUser.uid), { photo: base64 });
     };
     reader.readAsDataURL(file);
+};
+
+// REMOVE PHOTO
+document.getElementById("remove-photo-btn").onclick = async (e) => {
+    e.stopPropagation(); // Stop clicking the wrapper
+    if(!confirm("Remove profile photo?")) return;
+    
+    await updateDoc(doc(db, "users", currentUser.uid), { photo: null });
+    document.getElementById("profile-img").src = "https://via.placeholder.com/50";
+    document.getElementById("remove-photo-btn").classList.add("hidden");
 };
 
 
@@ -172,7 +182,7 @@ document.getElementById("confirm-create").onclick = async () => {
 };
 
 
-// --- SESSION DETAIL ---
+// --- SESSION DETAIL & REAL-TIME UPDATE ---
 async function openSession(sessId, data) {
     currentSessionId = sessId;
     sessionData = data;
@@ -180,9 +190,7 @@ async function openSession(sessId, data) {
 
     document.getElementById("detail-title").innerText = data.name;
     document.getElementById("detail-dates").innerText = `${data.startDate} — ${data.status === 'Ended' ? data.endDate : 'Ongoing'}`;
-    document.getElementById("attendance-percent").innerText = "--%";
     
-    // HIDE END BUTTON IF ENDED
     if(data.status === "Ended") {
         document.getElementById("end-session-btn").classList.add("hidden");
     } else {
@@ -194,6 +202,7 @@ async function openSession(sessId, data) {
 
     viewDate = new Date(); 
     renderCalendar();
+    calculateAttendance(); // REAL-TIME UPDATE ON OPEN
     
     showScreen('detail');
 }
@@ -201,7 +210,6 @@ async function openSession(sessId, data) {
 document.getElementById("back-btn").onclick = () => showScreen('dashboard');
 
 
-// --- CALENDAR RENDERER ---
 function renderCalendar() {
     const grid = document.getElementById("calendar-days");
     grid.innerHTML = "";
@@ -212,13 +220,11 @@ function renderCalendar() {
     const firstDay = new Date(viewDate.getFullYear(), viewDate.getMonth(), 1).getDay();
     const daysInMonth = new Date(viewDate.getFullYear(), viewDate.getMonth() + 1, 0).getDate();
 
-    // Empty Slots
     for(let i=0; i<firstDay; i++) {
         const div = document.createElement("div");
         grid.appendChild(div);
     }
 
-    // Days
     for(let i=1; i<=daysInMonth; i++) {
         const div = document.createElement("div");
         div.className = "day-box";
@@ -230,7 +236,6 @@ function renderCalendar() {
         const endObj = sessionData.endDate ? new Date(sessionData.endDate) : new Date();
         const today = new Date();
 
-        // Future Logic
         if(currentObj < startObj || (sessionData.status === 'Ongoing' && currentObj > today) || (sessionData.status === 'Ended' && currentObj > endObj)) {
             div.classList.add("day-future");
         } else {
@@ -242,14 +247,8 @@ function renderCalendar() {
             div.onclick = () => toggleDay(dateStr, status);
         }
 
-        // Start Date Marker (Star)
-        if(dateStr === sessionData.startDate) {
-            div.classList.add("start-date-marker");
-        }
-        // End Date Marker (Flag)
-        if(sessionData.status === 'Ended' && dateStr === sessionData.endDate) {
-            div.classList.add("end-date-marker");
-        }
+        if(dateStr === sessionData.startDate) div.classList.add("start-date-marker");
+        if(sessionData.status === 'Ended' && dateStr === sessionData.endDate) div.classList.add("end-date-marker");
         
         grid.appendChild(div);
     }
@@ -265,7 +264,6 @@ function isDefaultHoliday(dateStr) {
 }
 
 async function toggleDay(dateStr, currentStatus) {
-    // LOCK EDITING IF ENDED
     if(sessionData.status === "Ended") return alert("Session Ended. Cannot edit.");
     
     let newStatus = "Present";
@@ -275,6 +273,7 @@ async function toggleDay(dateStr, currentStatus) {
 
     sessionExceptions[dateStr] = newStatus;
     renderCalendar(); 
+    calculateAttendance(); // REAL-TIME UPDATE AFTER CLICK
 
     const ref = doc(db, `users/${currentUser.uid}/sessions/${currentSessionId}/exceptions`, dateStr);
     if(newStatus === "Present") {
@@ -285,20 +284,8 @@ async function toggleDay(dateStr, currentStatus) {
     }
 }
 
-// Nav Buttons
-document.getElementById("prev-month-btn").onclick = () => {
-    if(viewDate.getFullYear() === 2026 && viewDate.getMonth() === 0) return;
-    viewDate.setMonth(viewDate.getMonth() - 1);
-    renderCalendar();
-};
-document.getElementById("next-month-btn").onclick = () => {
-    if(viewDate.getFullYear() === 2027 && viewDate.getMonth() === 11) return;
-    viewDate.setMonth(viewDate.getMonth() + 1);
-    renderCalendar();
-};
-
-document.getElementById("check-btn").onclick = () => {
-    document.getElementById("check-btn").innerText = "Calculating...";
+// REAL-TIME CALCULATION FUNCTION
+function calculateAttendance() {
     let totalWorkingDays = 0;
     let daysPresent = 0;
     let loopDate = new Date(sessionData.startDate);
@@ -317,17 +304,24 @@ document.getElementById("check-btn").onclick = () => {
         loopDate.setDate(loopDate.getDate() + 1);
     }
     
-    // EXACT CALCULATION
     let percent = 100;
     if(totalWorkingDays > 0) {
         percent = (daysPresent / totalWorkingDays) * 100;
     }
-    // Show 2 decimal places (e.g., 85.71%)
     document.getElementById("attendance-percent").innerText = `${percent.toFixed(2)}%`;
-    document.getElementById("check-btn").innerText = "Check Attendance";
+}
+
+document.getElementById("prev-month-btn").onclick = () => {
+    if(viewDate.getFullYear() === 2026 && viewDate.getMonth() === 0) return;
+    viewDate.setMonth(viewDate.getMonth() - 1);
+    renderCalendar();
+};
+document.getElementById("next-month-btn").onclick = () => {
+    if(viewDate.getFullYear() === 2027 && viewDate.getMonth() === 11) return;
+    viewDate.setMonth(viewDate.getMonth() + 1);
+    renderCalendar();
 };
 
-// END SESSION
 document.getElementById("end-session-btn").onclick = () => document.getElementById("end-modal").classList.remove("hidden");
 document.getElementById("cancel-end").onclick = () => document.getElementById("end-modal").classList.add("hidden");
 document.getElementById("confirm-end").onclick = async () => {
@@ -357,9 +351,17 @@ async function checkAdmin() {
             list.innerHTML = "";
             allUsers.forEach(u => {
                 const d = u.data();
-                list.innerHTML += `<div style="border-bottom:1px solid #eee; padding:5px;"><b>${d.name}</b><br><small>${d.email}</small></div>`;
+                // SHOW PHOTO IN ADMIN LIST
+                const pic = d.photo ? d.photo : "https://via.placeholder.com/30";
+                list.innerHTML += `
+                    <div style="border-bottom:1px solid #eee; padding:8px; display:flex; align-items:center; gap:10px;">
+                        <img src="${pic}" style="width:30px; height:30px; border-radius:50%; object-fit:cover;">
+                        <div>
+                            <b>${d.name}</b><br><small>${d.email}</small>
+                        </div>
+                    </div>`;
             });
         };
         document.getElementById("close-admin").onclick = () => document.getElementById("admin-modal").classList.add("hidden");
     }
-}
+                                                                                 }
