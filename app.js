@@ -37,24 +37,28 @@ const screens = {
     detail: document.getElementById("session-detail-screen")
 };
 
-// --- DARK MODE TOGGLE ---
+// --- DARK MODE TOGGLE (SAFE VERSION) ---
 const themeBtn = document.getElementById("theme-toggle");
-if(localStorage.getItem("theme") === "dark") {
-    document.body.setAttribute("data-theme", "dark");
-    themeBtn.innerText = "☀️";
-}
 
-themeBtn.onclick = () => {
-    if(document.body.getAttribute("data-theme") === "dark") {
-        document.body.removeAttribute("data-theme");
-        localStorage.setItem("theme", "light");
-        themeBtn.innerText = "🌙";
-    } else {
+// Only run this if the button actually exists!
+if (themeBtn) {
+    if(localStorage.getItem("theme") === "dark") {
         document.body.setAttribute("data-theme", "dark");
-        localStorage.setItem("theme", "dark");
         themeBtn.innerText = "☀️";
     }
-};
+
+    themeBtn.onclick = () => {
+        if(document.body.getAttribute("data-theme") === "dark") {
+            document.body.removeAttribute("data-theme");
+            localStorage.setItem("theme", "light");
+            themeBtn.innerText = "🌙";
+        } else {
+            document.body.setAttribute("data-theme", "dark");
+            localStorage.setItem("theme", "dark");
+            themeBtn.innerText = "☀️";
+        }
+    };
+}
 
 // --- AUTH ---
 onAuthStateChanged(auth, async (user) => {
