@@ -23,7 +23,6 @@ let currentSessionId = null;
 let sessionExceptions = {}; 
 let sessionData = null; 
 let viewDate = new Date(); 
-let selectedDateForNote = null; 
 
 const fixedHolidays = [
     "-01-01", "-01-26", "-08-15", "-10-02", "-12-25",
@@ -37,34 +36,12 @@ const screens = {
     detail: document.getElementById("session-detail-screen")
 };
 
-// --- DARK MODE TOGGLE (SAFE VERSION) ---
-const themeBtn = document.getElementById("theme-toggle");
-
-// Only run this if the button actually exists!
-if (themeBtn) {
-    if(localStorage.getItem("theme") === "dark") {
-        document.body.setAttribute("data-theme", "dark");
-        themeBtn.innerText = "☀️";
-    }
-
-    themeBtn.onclick = () => {
-        if(document.body.getAttribute("data-theme") === "dark") {
-            document.body.removeAttribute("data-theme");
-            localStorage.setItem("theme", "light");
-            themeBtn.innerText = "🌙";
-        } else {
-            document.body.setAttribute("data-theme", "dark");
-            localStorage.setItem("theme", "dark");
-            themeBtn.innerText = "☀️";
-        }
-    };
-}
-
-// --- AUTH ---
+// --- AUTH & SETUP ---
 onAuthStateChanged(auth, async (user) => {
     if (user) {
         currentUser = user;
         const userDoc = await getDoc(doc(db, "users", user.uid));
+        
         if (userDoc.exists() && userDoc.data().name) {
             loadProfile(userDoc.data());
             showScreen('dashboard');
@@ -84,6 +61,7 @@ function loadProfile(data) {
     document.getElementById("user-name").innerHTML = ${data.name} <span id="edit-name-btn">✎</span>;
     document.getElementById("user-email").innerText = data.email;
     
+    // Handle Photo Logic
     const img = document.getElementById("profile-img");
     const removeBtn = document.getElementById("remove-photo-btn");
     
@@ -94,12 +72,14 @@ function loadProfile(data) {
         img.src = "https://via.placeholder.com/50";
         removeBtn.classList.add("hidden");
     }
+    
     document.getElementById("edit-name-btn").onclick = () => document.getElementById("edit-name-modal").classList.remove("hidden");
 }
 
 document.getElementById("login-btn").addEventListener("click", () => {
     const isSetupMode = !document.getElementById("first-time-setup").classList.contains("hidden");
     const nameInput = document.getElementById("display-name-input").value;
+
     if(isSetupMode && !nameInput) return alert("Please enter your name!");
 
     signInWithPopup(auth, provider).then(async (result) => {
@@ -126,10 +106,13 @@ document.getElementById("save-name-btn").onclick = async () => {
 };
 document.getElementById("cancel-edit-name").onclick = () => document.getElementById("edit-name-modal").classList.add("hidden");
 
+// UPLOAD PHOTO (Increased Limit to 5MB)
 document.getElementById("profile-pic-wrapper").onclick = () => document.getElementById("profile-upload").click();
 document.getElementById("profile-upload").onchange = async (e) => {
     const file = e.target.files[0];
     if(!file) return;
+    
+    // 5MB Limit
     if (file.size > 5 * 1024 * 1024) return alert("Image too large (Max 5MB)");
 
     const reader = new FileReader();
@@ -142,9 +125,11 @@ document.getElementById("profile-upload").onchange = async (e) => {
     reader.readAsDataURL(file);
 };
 
+// REMOVE PHOTO
 document.getElementById("remove-photo-btn").onclick = async (e) => {
-    e.stopPropagation(); 
+    e.stopPropagation(); // Stop clicking the wrapper
     if(!confirm("Remove profile photo?")) return;
+    
     await updateDoc(doc(db, "users", currentUser.uid), { photo: null });
     document.getElementById("profile-img").src = "https://via.placeholder.com/50";
     document.getElementById("remove-photo-btn").classList.add("hidden");
@@ -180,11 +165,8 @@ document.getElementById("cancel-create").onclick = () => document.getElementById
 document.getElementById("confirm-create").onclick = async () => {
     const name = document.getElementById("new-session-name").value;
     const date = document.getElementById("new-session-date").value;
-    let target = document.getElementById("new-session-target").value;
-
+    
     if(!name || !date) return alert("Fill all fields");
-    if(!target) target = 75; 
-
     if(new Date(date) > new Date()) return alert("Cannot start in future");
     if(new Date(date) < new Date("2026-01-01")) return alert("Cannot start before 2026");
 
@@ -192,8 +174,7 @@ document.getElementById("confirm-create").onclick = async () => {
         name: name,
         startDate: date,
         endDate: null,
-        status: "Ongoing",
-        target: Number(target)
+        status: "Ongoing"
     });
     
     document.getElementById("create-modal").classList.add("hidden");
@@ -201,21 +182,15 @@ document.getElementById("confirm-create").onclick = async () => {
 };
 
 
-// --- SESSION DETAIL ---
+// --- SESSION DETAIL & REAL-TIME UPDATE ---
 async function openSession(sessId, data) {
     currentSessionId = sessId;
     sessionData = data;
-    if(sessionData.target === undefined) sessionData.target = 75; 
-
     sessionExceptions = {};
-    document.getElementById("note-input-container").classList.add("hidden"); 
 
     document.getElementById("detail-title").innerText = data.name;
     document.getElementById("detail-dates").innerText = ${data.startDate} — ${data.status === 'Ended' ? data.endDate : 'Ongoing'};
     
-    const btnText = sessionData.target === 0 ? "Target: OFF" : Target: ${sessionData.target}%;
-    document.getElementById("edit-target-btn").innerText = btnText;
-
     if(data.status === "Ended") {
         document.getElementById("end-session-btn").classList.add("hidden");
     } else {
@@ -223,29 +198,14 @@ async function openSession(sessId, data) {
     }
 
     const snap = await getDocs(collection(db, users/${currentUser.uid}/sessions/${sessId}/exceptions));
-    snap.forEach(d => { 
-        sessionExceptions[d.id] = d.data(); 
-    });
+    snap.forEach(d => { sessionExceptions[d.id] = d.data().status; });
 
     viewDate = new Date(); 
     renderCalendar();
-    calculateAttendance(); 
+    calculateAttendance(); // REAL-TIME UPDATE ON OPEN
     
     showScreen('detail');
 }
-document.getElementById("edit-target-btn").onclick = async () => {
-    if(sessionData.status === "Ended") return alert("Session Ended.");
-    let input = prompt("Enter new target percentage (0 to turn off):", sessionData.target);
-    if(input === null) return;
-    let newTarget = Number(input);
-    if(isNaN(newTarget) || newTarget < 0 || newTarget > 100) return alert("Invalid number");
-
-    await updateDoc(doc(db, users/${currentUser.uid}/sessions, currentSessionId), { target: newTarget });
-    sessionData.target = newTarget;
-    const btnText = newTarget === 0 ? "Target: OFF" : Target: ${newTarget}%;
-    document.getElementById("edit-target-btn").innerText = btnText;
-    calculateAttendance(); 
-};
 
 document.getElementById("back-btn").onclick = () => showScreen('dashboard');
 
@@ -280,19 +240,10 @@ function renderCalendar() {
             div.classList.add("day-future");
         } else {
             let status = "Present";
-            let hasNote = false;
-
             if(isDefaultHoliday(dateStr)) status = "Holiday";
-            
-            // Check Exceptions from DB
-            if(sessionExceptions[dateStr]) {
-                status = sessionExceptions[dateStr].status;
-                if(sessionExceptions[dateStr].note) hasNote = true;
-            }
+            if(sessionExceptions[dateStr]) status = sessionExceptions[dateStr];
 
             div.classList.add(day-${status.toLowerCase()});
-            if(hasNote) div.classList.add("note-marker");
-
             div.onclick = () => toggleDay(dateStr, status);
         }
 
@@ -312,81 +263,28 @@ function isDefaultHoliday(dateStr) {
     return false;
 }
 
-// --- TOGGLE DAY & NOTE LOGIC ---
 async function toggleDay(dateStr, currentStatus) {
     if(sessionData.status === "Ended") return alert("Session Ended. Cannot edit.");
     
-    // Cycle: Present -> Absent -> Holiday -> Present
     let newStatus = "Present";
     if(currentStatus === "Present") newStatus = "Absent";
     else if(currentStatus === "Absent") newStatus = "Holiday";
     else if(currentStatus === "Holiday") newStatus = "Present"; 
 
-    // Update Local State
-    if(!sessionExceptions[dateStr]) sessionExceptions[dateStr] = {};
-    sessionExceptions[dateStr].status = newStatus;
-
-    if(newStatus === "Absent") {
-        openNoteInput(dateStr);
-    } else {
-        document.getElementById("note-input-container").classList.add("hidden");
-    }
-
+    sessionExceptions[dateStr] = newStatus;
     renderCalendar(); 
-    calculateAttendance(); 
+    calculateAttendance(); // REAL-TIME UPDATE AFTER CLICK
 
     const ref = doc(db, users/${currentUser.uid}/sessions/${currentSessionId}/exceptions, dateStr);
-    
-    // DB SAVE
-    const dataToSave = { status: newStatus };
-    if(sessionExceptions[dateStr].note) dataToSave.note = sessionExceptions[dateStr].note;
-
     if(newStatus === "Present") {
         if(isDefaultHoliday(dateStr)) await setDoc(ref, { status: "Present" });
         else await deleteDoc(ref);
-        delete sessionExceptions[dateStr]; 
     } else {
-        await setDoc(ref, dataToSave);
+        await setDoc(ref, { status: newStatus });
     }
 }
 
-function openNoteInput(dateStr) {
-    selectedDateForNote = dateStr;
-    const container = document.getElementById("note-input-container");
-    const input = document.getElementById("day-note-input");
-    const label = document.getElementById("note-date-label");
-    
-    container.classList.remove("hidden");
-    label.innerText = Reason for absence on ${dateStr}:;
-    
-    if(sessionExceptions[dateStr] && sessionExceptions[dateStr].note) {
-        input.value = sessionExceptions[dateStr].note;
-    } else {
-        input.value = "";
-    }
-    input.focus();
-}
-
-// SAVE NOTE BUTTON
-document.getElementById("save-note-btn").onclick = async () => {
-    const noteText = document.getElementById("day-note-input").value;
-    if(!selectedDateForNote) return;
-
-    if(!sessionExceptions[selectedDateForNote]) sessionExceptions[selectedDateForNote] = { status: "Absent" };
-    sessionExceptions[selectedDateForNote].note = noteText;
-
-    const ref = doc(db, users/${currentUser.uid}/sessions/${currentSessionId}/exceptions, selectedDateForNote);
-    await setDoc(ref, { 
-        status: sessionExceptions[selectedDateForNote].status, 
-        note: noteText 
-    }, { merge: true });
-
-    document.getElementById("note-input-container").classList.add("hidden");
-    renderCalendar(); 
-};
-
-
-// --- HYBRID ATTENDANCE SYSTEM ---
+// REAL-TIME CALCULATION FUNCTION
 function calculateAttendance() {
     let totalWorkingDays = 0;
     let daysPresent = 0;
@@ -396,12 +294,8 @@ function calculateAttendance() {
     while(loopDate <= stopDate) {
         const dStr = loopDate.toISOString().split('T')[0];
         let status = "Present";
-        
-        if(sessionExceptions[dStr] && sessionExceptions[dStr].status) {
-            status = sessionExceptions[dStr].status;
-        } else if(isDefaultHoliday(dStr)) {
-            status = "Holiday";
-        }
+        if(isDefaultHoliday(dStr)) status = "Holiday";
+        if(sessionExceptions[dStr]) status = sessionExceptions[dStr];
 
         if(status !== "Holiday") {
             totalWorkingDays++;
@@ -411,45 +305,12 @@ function calculateAttendance() {
     }
     
     let percent = 100;
-    if(totalWorkingDays > 0) percent = (daysPresent / totalWorkingDays) * 100;
-    
-    document.getElementById("attendance-percent").innerText = ${percent.toFixed(2)}%;
-    updateBunkCalculator(daysPresent, totalWorkingDays, percent, sessionData.target);
-}
-
-function updateBunkCalculator(present, total, currentPercent, targetPercent) {
-    const oldMsg = document.getElementById("bunk-msg");
-    if(oldMsg) oldMsg.remove();
-    
-    if(targetPercent === 0) return; 
-
-    const parent = document.querySelector(".percentage-box");
-    const msgDiv = document.createElement("small");
-    msgDiv.id = "bunk-msg";
-    msgDiv.style.marginTop = "5px";
-    msgDiv.style.fontSize = "0.7em";
-    
-    const TARGET = targetPercent;
-
-    if (currentPercent >= TARGET) {
-        let daysToBunk = Math.floor((present / (TARGET / 100)) - total);
-        if (daysToBunk > 0) {
-            msgDiv.innerText = ✅ Safe! You can bunk ${daysToBunk} days.;
-            msgDiv.style.color = "#0F9D58"; 
-        } else {
-            msgDiv.innerText = ⚠️ On the edge! Don't miss next class.;
-            msgDiv.style.color = "#f39c12"; 
-        }
-    } else {
-        let needed = Math.ceil(((TARGET / 100) * total - present) / (1 - (TARGET / 100)));
-        if(needed < 0) needed = 0;
-        msgDiv.innerText = 🚨 Danger! Attend next ${needed} days to hit ${TARGET}%.;
-        msgDiv.style.color = "#d63031"; 
+    if(totalWorkingDays > 0) {
+        percent = (daysPresent / totalWorkingDays) * 100;
     }
-    parent.appendChild(msgDiv);
+    document.getElementById("attendance-percent").innerText = ${percent.toFixed(2)}%;
 }
 
-// --- NAV & ADMIN ---
 document.getElementById("prev-month-btn").onclick = () => {
     if(viewDate.getFullYear() === 2026 && viewDate.getMonth() === 0) return;
     viewDate.setMonth(viewDate.getMonth() - 1);
@@ -490,6 +351,7 @@ async function checkAdmin() {
             list.innerHTML = "";
             allUsers.forEach(u => {
                 const d = u.data();
+                // SHOW PHOTO IN ADMIN LIST
                 const pic = d.photo ? d.photo : "https://via.placeholder.com/30";
                 list.innerHTML += `
                     <div style="border-bottom:1px solid #eee; padding:8px; display:flex; align-items:center; gap:10px;">
