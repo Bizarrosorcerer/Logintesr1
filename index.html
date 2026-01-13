@@ -28,7 +28,6 @@
                     <div class="edit-overlay">📷</div>
                 </div>
                 <button id="remove-photo-btn" class="hidden" title="Remove Photo">×</button>
-                
                 <input type="file" id="profile-upload" accept="image/*" hidden>
 
                 <div class="user-info">
@@ -36,7 +35,10 @@
                     <small id="user-email">email@example.com</small>
                 </div>
             </div>
-            <button id="logout-btn" class="btn-small">Logout</button>
+            <div class="header-actions">
+                <button id="theme-toggle" class="btn-icon">🌙</button>
+                <button id="logout-btn" class="btn-small">Logout</button>
+            </div>
         </div>
 
         <div id="sessions-container"></div>
@@ -50,7 +52,10 @@
             <button id="back-btn" class="btn-secondary">← Back</button>
             <div class="session-info">
                 <h2 id="detail-title">Session Name</h2>
-                <small id="detail-dates">Dates...</small>
+                <div style="display:flex; align-items:center; gap:10px;">
+                    <small id="detail-dates">Dates...</small>
+                    <button id="edit-target-btn" class="btn-small" style="font-size:0.7em; padding:2px 8px;">Target: 75%</button>
+                </div>
             </div>
         </div>
 
@@ -58,6 +63,7 @@
             <span class="legend-item"><span class="dot green"></span> Present</span>
             <span class="legend-item"><span class="dot red"></span> Absent</span>
             <span class="legend-item"><span class="dot blue"></span> Holiday</span>
+            <span class="legend-item"><span class="triangle purple"></span> Note</span>
         </div>
 
         <div class="stats-card">
@@ -65,7 +71,7 @@
                 <span id="attendance-percent">--%</span>
                 <small>Attendance</small>
             </div>
-            </div>
+        </div>
 
         <div class="calendar-wrapper">
             <div class="calendar-nav">
@@ -81,6 +87,14 @@
             <div id="calendar-days" class="calendar-days-grid"></div>
         </div>
 
+        <div id="note-input-container" class="note-box hidden">
+            <small id="note-date-label">Note for Jan 15:</small>
+            <div style="display:flex; gap:5px;">
+                <input type="text" id="day-note-input" placeholder="Reason (e.g. Sick, Wedding)...">
+                <button id="save-note-btn" class="btn-primary" style="padding: 5px 15px;">Save</button>
+            </div>
+        </div>
+
         <div class="bottom-actions">
             <button id="end-session-btn" class="btn-danger">End Session</button>
         </div>
@@ -91,8 +105,14 @@
             <h3>Start New Session</h3>
             <label>Session Name:</label>
             <input type="text" id="new-session-name" placeholder="e.g. College Sem 3">
+            
             <label>Start Date:</label>
             <input type="date" id="new-session-date"> 
+
+            <label style="margin-top:10px; display:block;">Target Percentage (%):</label>
+            <input type="number" id="new-session-target" placeholder="75" value="75">
+            <small style="color:var(--text-muted); display:block; margin-bottom:15px;">Set to 0 to turn off Bunk Calculator.</small>
+
             <div class="modal-actions">
                 <button id="cancel-create" class="btn-text">Cancel</button>
                 <button id="confirm-create" class="btn-primary">Start</button>
